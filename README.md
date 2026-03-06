@@ -7,7 +7,7 @@ This is a script for systems administrators by a system administrator, so it isn
 
 The script is fairly well commented, you should be able to infer what you need from it. The few things I'll define are:
 ### ACME Subdomain and _acme-challenge records
-This is one subdomain (really a zone but I thought of that after writing most of this) where all your ACME DNS records will be hosted. Your DNS setup will look something like this (note that this is multiple DNS zones shown together):
+The ACME Subdomain is one subdomain (really a zone but I thought of that after writing most of this) where all your ACME DNS records will be hosted. The _acme-challenge TXT record(s) are where ACME looks for the verification string. Your DNS setup will look something like this (note that this is multiple DNS zones shown together, though this does work for sites with records in the same zone):
 ```.zone
 ; Note: As an avid DNSSEC enthusiast, even I do not value my sanity enough to bother deploying it for this.
 ; It probably wouldn't be *too* bad to implement, but it is so unimportant that I don't really care.
@@ -56,3 +56,18 @@ $INCLUDE	db.acme.your-uncool-website
 ```
 ### Slave zone files
 These are the files which are `$INCLUDE`'d in the Master zone file. These are overwritted by the script, so can just start off as being empty files (to avoid BIND erroring) and should not need further intervention.
+
+### Using this script
+1. First, update the script to have the domains you want to validate rather than the examples (it's just a bash switch/case statement.) It's fairly well commented.
+2. Then, to create the new certificate, run a certbot command like this as root: `certbot certonly -d your-cool-website.stellasec.com --elliptic-curve secp384r1 --preferred-challenges dns --manual --manual-auth-hook /path/to/acmedns.sh`
+3. This should "just work," and generate you a certificate valid for 90 days. To keep this up-to-date, I have a cronjob which runs that command every week on sunday at a random hour (which is different for each certificate I verify!). You *can* configure certbot to handle this on its own like it does for HTTP validated certificates, but I generally don't bother. Here's what the `[renewalparams]` section in `/etc/letsencrypt/renewal/cert-name.conf` should vaguely look like:
+```ini
+[renewalparams]
+account = <The hex account ID is stored in /etc/letsencrypt/accounts/acme-v02.api.letsencrypt.org/directory/>
+pref_challs = dns-01,
+server = https://acme-v02.api.letsencrypt.org/directory
+authenticator = manual
+manual_auth_hook = /path/to/acmedns.sh
+key_type = ecdsa
+```
+I somehow set up the [renewalparams] for one of my zones, don't remember exactly how or why, but it still works so that's nice. 
